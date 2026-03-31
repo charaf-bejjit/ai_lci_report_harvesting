@@ -1,0 +1,11 @@
+pdfplumber
+pandas
+rapidfuzz
+google-cloud-aiplatform
+vertexai
+pillow
+pdf2image
+tqdm
+openpyxl
+streamlit
+plotly
