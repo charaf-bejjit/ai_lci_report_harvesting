@@ -15,6 +15,12 @@ performed for the copper case study, and finally reproduces the energy-intensity
 """
 )
 
+PLOTLY_CONFIG = {
+    "editable": True,
+    "displaylogo": False,
+    "scrollZoom": False
+}
+
 # =========================================================
 # DATA — SCREENING
 # =========================================================
@@ -152,34 +158,72 @@ def stacked_bar(title, x_labels, correct_vals, partial_vals, incorrect_vals, y_t
     return fig
 
 def screening_sankey(case_name, d):
-    labels = [
-        f"{case_name} automatic NO-GO",
-        f"{case_name} failed",
-        f"{case_name} review set (GO + MAYBE)",
-        f"{case_name} retained",
-        f"{case_name} excluded"
-    ]
 
-    fig = go.Figure(
-        data=[go.Sankey(
-            node=dict(label=labels, pad=20, thickness=20),
-            link=dict(
-                source=[0, 1, 2, 2],
-                target=[4, 4, 3, 4],
-                value=[
-                    d["auto_nogo"],
-                    d["failed"],
-                    d["retained"],
-                    d["review_excluded"]
-                ]
-            )
-        )]
-    )
+    labels = ["GO", "NO-GO", "MAYBE", "Retained", "Excluded"]
+
+    # POSITIONS FORCÉES (clé)
+    x = [0.0, 0.0, 0.0, 1.0, 1.0]
+    y = [0.0, 0.5, 0.9, 0.2, 0.75]  # GO haut, NO-GO milieu, MAYBE bas
+
+    COLORS = {
+        "go": "#2E7D32",
+        "nogo": "#C62828",
+        "maybe": "#F57C00",
+        "retained": "#66BB6A",
+        "excluded": "#EF5350",
+        "flow": "rgba(120,120,120,0.35)"
+    }
+
+    review_total = d["auto_go"] + d["auto_maybe"]
+
+    retained = d["retained"]
+    excluded = d["review_excluded"]
+
+    go_to_retained = d["auto_go"] * retained / review_total
+    go_to_excluded = d["auto_go"] * excluded / review_total
+
+    maybe_to_retained = d["auto_maybe"] * retained / review_total
+    maybe_to_excluded = d["auto_maybe"] * excluded / review_total
+
+    fig = go.Figure(go.Sankey(
+        arrangement="snap",  # 🔥 PAS DE TRI
+        node=dict(
+            label=labels,
+            x=x,
+            y=y,
+            pad=40,
+            thickness=30,
+            color=[
+                COLORS["go"],
+                COLORS["nogo"],
+                COLORS["maybe"],
+                COLORS["retained"],
+                COLORS["excluded"]
+            ]
+        ),
+        link=dict(
+            source=[0, 0, 2, 2, 1],
+            target=[3, 4, 3, 4, 4],
+            value=[
+                go_to_retained,
+                go_to_excluded,
+                maybe_to_retained,
+                maybe_to_excluded,
+                d["auto_nogo"]
+            ],
+            color=COLORS["flow"]
+        )
+    ))
+
     fig.update_layout(
         title=f"{case_name} — screening and validation flow",
-        margin=dict(t=60, b=20, l=20, r=20)
+        dragmode="pan"  # 🔥 INTERACTIF (déplacement)
     )
+
     return fig
+
+def format_site(name):
+    return "<br>".join(str(name).split())
 
 # =========================================================
 # 1. GENERAL SCREENING RESULTS
@@ -194,7 +238,7 @@ including automated screening decisions, final outcomes after expert review,
 and report-flow diagrams.
 """
 )
-
+# 👇 LÉGENDE ICI (AVANT LES SANKEY)
 col1, col2 = st.columns(2)
 
 with col1:
@@ -255,13 +299,37 @@ with col2:
         use_container_width=True
     )
 
+st.markdown("""
+<div style="
+display:flex;
+justify-content:center;
+gap:40px;
+font-size:16px;
+margin-bottom:10px;
+">
+<span style="color:#2E7D32;">● GO</span>
+<span style="color:#C62828;">● NO-GO</span>
+<span style="color:#F57C00;">● MAYBE</span>
+<span style="color:#66BB6A;">● Retained</span>
+<span style="color:#EF5350;">● Excluded</span>
+</div>
+""", unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 
 with col1:
-    st.plotly_chart(screening_sankey("Copper", screening["Copper"]), use_container_width=True)
+    st.plotly_chart(
+        screening_sankey("Copper", screening["Copper"]),
+        use_container_width=True,
+        config=PLOTLY_CONFIG
+    )
 
 with col2:
-    st.plotly_chart(screening_sankey("Nickel", screening["Nickel"]), use_container_width=True)
+    st.plotly_chart(
+        screening_sankey("Nickel", screening["Nickel"]),
+        use_container_width=True,
+        config=PLOTLY_CONFIG
+    )
 
 # =========================================================
 # 2. EXTRACTED DATA — ARTICLE GRAPH + Cu/Ni COMPARISON
@@ -293,14 +361,14 @@ fig_combined_bar.update_layout(
     margin=dict(t=60, b=20, l=20, r=20)
 )
 
-st.plotly_chart(fig_combined_bar, use_container_width=True)
+st.plotly_chart(fig_combined_bar, use_container_width=True, config=PLOTLY_CONFIG)
 
 fig_combined_pie = donut_chart(
     "Combined source-type distribution",
     list(combined_source.keys()),
     list(combined_source.values())
 )
-st.plotly_chart(fig_combined_pie, use_container_width=True)
+st.plotly_chart(fig_combined_pie, use_container_width=True, config=PLOTLY_CONFIG)
 
 col1, col2 = st.columns(2)
 
@@ -311,7 +379,8 @@ with col1:
             list(cu_source.keys()),
             list(cu_source.values())
         ),
-        use_container_width=True
+        use_container_width=True,
+        config=PLOTLY_CONFIG
     )
 
 with col2:
@@ -321,7 +390,8 @@ with col2:
             list(ni_source.keys()),
             list(ni_source.values())
         ),
-        use_container_width=True
+        use_container_width=True,
+        config=PLOTLY_CONFIG
     )
 
 # =========================================================
@@ -343,7 +413,7 @@ fig_val_global = donut_chart(
     list(validation_global.keys()),
     list(validation_global.values())
 )
-st.plotly_chart(fig_val_global, use_container_width=True)
+st.plotly_chart(fig_val_global, use_container_width=True, config=PLOTLY_CONFIG)
 
 fig_val_source = stacked_bar(
     "Copper — validation by source type",
@@ -352,7 +422,7 @@ fig_val_source = stacked_bar(
     [validation_source[k]["Partial"] for k in validation_source.keys()],
     [validation_source[k]["Incorrect"] for k in validation_source.keys()]
 )
-st.plotly_chart(fig_val_source, use_container_width=True)
+st.plotly_chart(fig_val_source, use_container_width=True, config=PLOTLY_CONFIG)
 
 val_cat_order = ["Production", "Emissions", "Economics", "Energy", "Water", "Waste", "Land", "Other", "Geology"]
 fig_val_cat = stacked_bar(
@@ -362,7 +432,7 @@ fig_val_cat = stacked_bar(
     [validation_category[k]["Partial"] for k in val_cat_order],
     [validation_category[k]["Incorrect"] for k in val_cat_order]
 )
-st.plotly_chart(fig_val_cat, use_container_width=True)
+st.plotly_chart(fig_val_cat, use_container_width=True, config=PLOTLY_CONFIG)
 
 st.markdown(
     """
@@ -379,169 +449,173 @@ st.header("4. Copper energy intensity figures")
 
 st.markdown(
     """
-Upload the Excel file used for the Cu energy-intensity analysis.
-The dashboard will generate:
+The dashboard generates:
 - the ascending curve for **Cu concentrate**
 - the ascending curve for **Cu cathode**
 - a combined **bubble plot** for both product types
 """
 )
 
-uploaded_file = st.file_uploader("Upload Cu energy-intensity Excel file", type=["xlsx"])
+# === Local path exactly as requested ===
+file_path = r"C:\Users\bejjit\Downloads\20260225_Cu_Intensity&Prod_Results_v3 (1).xlsx"
+df = pd.read_excel(file_path)
 
-if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
+# Clean
+df["Production site"] = df["Production site"].astype(str).str.strip()
+df["Main product"] = df["Main product"].astype(str).str.strip()
+df["Total energy consumption"] = df["Total energy consumption"].astype(str).str.strip()
 
-    # Clean
-    df["Production site"] = df["Production site"].astype(str).str.strip()
-    df["Main product"] = df["Main product"].astype(str).str.strip()
-    df["Total energy consumption"] = df["Total energy consumption"].astype(str).str.strip()
+df = df[df["Total energy consumption"].isin([
+    "Electricity consumption",
+    "Fuel consumption",
+    "Electricity and fuel consumption"
+])].copy()
 
-    df = df[df["Total energy consumption"].isin([
-        "Electricity consumption",
-        "Fuel consumption",
-        "Electricity and fuel consumption"
-    ])].copy()
+# Convert production to '000 tonnes
+df["Annual Cu production (t)"] = df["Annual Cu production (t)"] / 1000
 
-    # Convert production to '000 tonnes
-    df["Annual Cu production (t)"] = df["Annual Cu production (t)"] / 1000
+# Pivot
+pivot = df.pivot_table(
+    index=["Production site", "Main product", "Annual Cu production (t)"],
+    columns="Total energy consumption",
+    values="Energy intensity (GJ/t Cu)",
+    aggfunc="sum",
+    fill_value=0
+).reset_index()
 
-    # Pivot
-    pivot = df.pivot_table(
-        index=["Production site", "Main product", "Annual Cu production (t)"],
-        columns="Total energy consumption",
-        values="Energy intensity (GJ/t Cu)",
-        aggfunc="sum",
-        fill_value=0
-    ).reset_index()
+for col in [
+    "Electricity consumption",
+    "Fuel consumption",
+    "Electricity and fuel consumption"
+]:
+    if col not in pivot.columns:
+        pivot[col] = 0
 
-    for col in [
-        "Electricity consumption",
-        "Fuel consumption",
-        "Electricity and fuel consumption"
-    ]:
-        if col not in pivot.columns:
-            pivot[col] = 0
+pivot["Total intensity"] = (
+    pivot["Electricity consumption"]
+    + pivot["Fuel consumption"]
+    + pivot["Electricity and fuel consumption"]
+)
 
-    pivot["Total intensity"] = (
-        pivot["Electricity consumption"]
-        + pivot["Fuel consumption"]
-        + pivot["Electricity and fuel consumption"]
+colors = {
+    "electricity": "#A9CBE8",
+    "combined": "#4F81BD",
+    "fuel": "#0B3C6D"
+}
+
+def build_curve(data, title):
+    d = data.sort_values("Total intensity", ascending=True).copy()
+
+    d["x_start"] = d["Annual Cu production (t)"].cumsum() - d["Annual Cu production (t)"]
+    d["x_center"] = d["x_start"] + d["Annual Cu production (t)"] / 2
+
+    total_width = d["Annual Cu production (t)"].sum()
+
+    fig = go.Figure()
+
+    fig.add_bar(
+        x=d["x_center"],
+        y=d["Electricity consumption"],
+        width=d["Annual Cu production (t)"],
+        name="Electricity",
+        marker_color=colors["electricity"]
     )
 
-    def format_site(name):
-        return "<br>".join(str(name).split())
-
-    colors = {
-        "electricity": "#A9CBE8",
-        "combined": "#4F81BD",
-        "fuel": "#0B3C6D"
-    }
-
-    def build_curve(data, title):
-        d = data.sort_values("Total intensity", ascending=True).copy()
-
-        d["x_start"] = d["Annual Cu production (t)"].cumsum() - d["Annual Cu production (t)"]
-        d["x_center"] = d["x_start"] + d["Annual Cu production (t)"] / 2
-
-        fig = go.Figure()
-
-        fig.add_bar(
-            x=d["x_center"],
-            y=d["Electricity consumption"],
-            width=d["Annual Cu production (t)"],
-            name="Electricity",
-            marker_color=colors["electricity"]
-        )
-
-        fig.add_bar(
-            x=d["x_center"],
-            y=d["Electricity and fuel consumption"],
-            width=d["Annual Cu production (t)"],
-            name="Fuel & Electricity",
-            marker_color=colors["combined"]
-        )
-
-        fig.add_bar(
-            x=d["x_center"],
-            y=d["Fuel consumption"],
-            width=d["Annual Cu production (t)"],
-            name="Fuel",
-            marker_color=colors["fuel"]
-        )
-
-        for i, row in d.iterrows():
-            fig.add_annotation(
-                x=row["x_center"],
-                y=row["Total intensity"],
-                text=format_site(row["Production site"]),
-                showarrow=True,
-                arrowhead=2,
-                ay=-60 if i % 2 == 0 else -100,
-                font=dict(size=12)
-            )
-
-        total_width = d["Annual Cu production (t)"].sum()
-
-        fig.update_layout(
-            barmode="stack",
-            template="plotly_white",
-            bargap=0,
-            title=title,
-            xaxis=dict(
-                title="Annual Cu production ('000 tonnes)",
-                range=[0, total_width]
-            ),
-            yaxis=dict(title="Energy intensity (GJ/t Cu)"),
-            legend=dict(
-                orientation="v",
-                yanchor="top",
-                y=1.0,
-                xanchor="left",
-                x=0.01
-            ),
-            margin=dict(t=60, b=20, l=20, r=20)
-        )
-        return fig
-
-    conc = pivot[pivot["Main product"] == "Cu concentrate"].copy()
-    cath = pivot[pivot["Main product"] == "Cu cathode"].copy()
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if not conc.empty:
-            st.plotly_chart(
-                build_curve(conc, "Cu concentrate — ascending"),
-                use_container_width=True
-            )
-        else:
-            st.info("No Cu concentrate data found in the uploaded file.")
-
-    with col2:
-        if not cath.empty:
-            st.plotly_chart(
-                build_curve(cath, "Cu cathode — ascending"),
-                use_container_width=True
-            )
-        else:
-            st.info("No Cu cathode data found in the uploaded file.")
-
-    # Bubble plot combining both
-    bubble_df = pivot.copy()
-    fig_bubble = px.scatter(
-        bubble_df,
-        x="Annual Cu production (t)",
-        y="Total intensity",
-        color="Main product",
-        size="Annual Cu production (t)",
-        hover_name="Production site",
-        title="Copper energy intensity — combined bubble plot",
-        labels={
-            "Annual Cu production (t)": "Annual Cu production ('000 tonnes)",
-            "Total intensity": "Energy intensity (GJ/t Cu)"
-        }
+    fig.add_bar(
+        x=d["x_center"],
+        y=d["Electricity and fuel consumption"],
+        width=d["Annual Cu production (t)"],
+        name="Fuel & Electricity",
+        marker_color=colors["combined"]
     )
-    st.plotly_chart(fig_bubble, use_container_width=True)
-else:
-    st.info("Upload the Excel file to generate the Cu energy-intensity figures.")
+
+    fig.add_bar(
+        x=d["x_center"],
+        y=d["Fuel consumption"],
+        width=d["Annual Cu production (t)"],
+        name="Fuel",
+        marker_color=colors["fuel"]
+    )
+
+    for i, row in d.iterrows():
+        fig.add_annotation(
+            x=row["x_center"],
+            y=row["Total intensity"],
+            text=format_site(row["Production site"]),
+            showarrow=True,
+            arrowhead=2,
+            ax=0,
+            ay=-60 if i % 2 == 0 else -100,
+            font=dict(size=14),
+            align="center"
+        )
+
+    if total_width < 500:
+        dtick = 100
+    elif total_width < 1000:
+        dtick = 100
+    elif total_width < 3000:
+        dtick = 500
+    else:
+        dtick = 500
+
+    fig.update_layout(
+        barmode="stack",
+        template="plotly_white",
+        bargap=0,
+        title=title,
+        dragmode="pan",
+        xaxis=dict(
+            title="Annual Cu production ('000 tonnes)",
+            range=[0, total_width],
+            tickmode="linear",
+            tick0=0,
+            dtick=dtick,
+            showgrid=True,
+            gridcolor="lightgrey"
+        ),
+        yaxis=dict(title="Energy intensity (GJ/t Cu)"),
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1.0,
+            xanchor="left",
+            x=0.01,
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="rgba(0,0,0,0.1)",
+            borderwidth=1
+        ),
+        margin=dict(t=60, b=20, l=20, r=20)
+    )
+    return fig
+
+conc = pivot[pivot["Main product"] == "Cu concentrate"].copy()
+cath = pivot[pivot["Main product"] == "Cu cathode"].copy()
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if not conc.empty:
+        st.plotly_chart(
+            build_curve(conc, "Cu concentrate — ascending"),
+            use_container_width=True,
+            config=PLOTLY_CONFIG
+        )
+    else:
+        st.info("No Cu concentrate data found in the file.")
+
+with col2:
+    if not cath.empty:
+        st.plotly_chart(
+            build_curve(cath, "Cu cathode — ascending"),
+            use_container_width=True,
+            config=PLOTLY_CONFIG
+        )
+    else:
+        st.info("No Cu cathode data found in the file.")
+
+st.markdown(
+    """
+ℹ️ **Note:** These figures are interactive. Site labels in the stacked charts can be manually repositioned for improved readability if overlap occurs.
+"""
+)
