@@ -456,8 +456,7 @@ The dashboard generates:
 """
 )
 
-# === Local path exactly as requested ===
-file_path = r"C:\Users\bejjit\Downloads\20260225_Cu_Intensity&Prod_Results_v3 (1).xlsx"
+file_path = "20260225_Cu_Intensity&Prod_Results_v3 (1).xlsx"
 df = pd.read_excel(file_path)
 
 # Clean
