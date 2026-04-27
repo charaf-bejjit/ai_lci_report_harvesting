@@ -17,7 +17,7 @@ from vertexai.generative_models import GenerativeModel, GenerationConfig
 
 # ===================== CONFIG =====================
 # ATTENTION: Vérifiez le chemin du dossier d'entrée
-IN_DIR = r"D:\Rapports Vienne - Extraction Charaf\reports 0312"
+IN_DIR = os.getenv("INPUT_FOLDER", "./input")
 
 # Seuil "diag vide" (octets). 2200 ≈ 2 Ko. Les diagnostics vides (échec) sont souvent de cette taille.
 SIZE_THRESHOLD = 2200
@@ -32,15 +32,14 @@ METALS_OF_INTEREST = {
 }
 INTEREST_KEYWORDS = set(sum(METALS_OF_INTEREST.values(), []))
 
-# Vertex AI
-# ATTENTION: Assurez-vous que le chemin ci-dessous est correct sur votre machine!
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.environ.get(
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    r"D:\Documents\bejjit\OneDrive - BRGM\Bureau\gen-lang-client-0621439771-7fb242ad8b70.json"
-)
-PROJECT_ID = os.environ.get("PROJECT_ID", "gen-lang-client-0621439771")
-LOCATION = os.environ.get("VTX_LOCATION", "europe-west4")
-MODEL_ID = os.environ.get("VTX_MODEL", "gemini-2.5-pro")
+# ===================== GOOGLE CLOUD CONFIG =====================
+# ⚠️ IMPORTANT:
+# Définir la variable d'environnement avant exécution :
+# GOOGLE_APPLICATION_CREDENTIALS = chemin/vers/credentials.json
+
+PROJECT_ID = os.getenv("PROJECT_ID", "your-project-id")
+LOCATION = os.getenv("VTX_LOCATION", "europe-west4")
+MODEL_ID = os.getenv("VTX_MODEL", "gemini-2.5-pro")
 
 # ===================== PROMPT (AJUSTÉ final) =====================
 PROMPT = r"""
@@ -686,7 +685,7 @@ def process_pdf(pdf_path: str, model, cfg) -> Dict[str, Any]:
 
 # ===================== MAIN (mode PATCH: ne traite que les __DIAG petits) =====================
 def main():
-    
+    os.makedirs(IN_DIR, exist_ok=True)
     # NOUVELLES COLONNES POUR LE DATAFRAME FINAL
     EXCEL_COLUMNS = [
         "pdf","company","report_name","year","report_type",
