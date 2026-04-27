@@ -10,24 +10,27 @@ from typing import Optional, Tuple
 import unicodedata # Import nécessaire pour la normalisation d'Unicode
 
 # =================== CONFIG ===================
-INPUT_FOLDER = r"D:\Rapports Vienne - Extraction Charaf\Di_Copper_go_reports"
-OUTPUT_FOLDER = INPUT_FOLDER
+INPUT_FOLDER = os.getenv("INPUT_FOLDER", "./input")
+OUTPUT_FOLDER = os.getenv("OUTPUT_FOLDER", "./output")
 
 FLAGS_CSV = os.path.join(OUTPUT_FOLDER, "ALL_FLAGS.csv")
 CACHE_DIR = ".llm_cache_v11"
-MAPPING_FILE = r"D:\Rapports Vienne - Extraction Charaf\companies_sites_IDs_materials.csv"
+MAPPING_FILE = os.getenv("MAPPING_FILE", "./mapping.csv")
 # FICHIER RÉCAPITULATIF
-SUMMARY_FILE = r"D:\Rapports Vienne - Extraction Charaf\Dia_sum_patch_Cu_Final.csv"
+SUMMARY_FILE = os.getenv("SUMMARY_FILE", "./summary.csv")
 
 # ⬇️ DPI CONFIGURATION
 DEFAULT_DPI = 320
 CHART_DPI = 400
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"D:\Documents\bejjit\OneDrive - BRGM\Bureau\gen-lang-client-0621439771-7fb242ad8b70.json"
+# =================== GOOGLE CLOUD CONFIG ===================
+# ⚠️ IMPORTANT:
+# Avant d'exécuter ce script, définissez la variable d'environnement :
+# GOOGLE_APPLICATION_CREDENTIALS = chemin/vers/votre_fichier_credentials.json
 
-PROJECT_ID = "gen-lang-client-0621439771"
-LOCATION = "europe-west4"
-MODEL_ID = "gemini-2.5-flash"
+PROJECT_ID = os.getenv("PROJECT_ID", "your-project-id")
+LOCATION = os.getenv("LOCATION", "europe-west4")
+MODEL_ID = os.getenv("MODEL_ID", "gemini-2.5-flash")
 
 TABLE_HINT = """
 IMPORTANT:
@@ -694,6 +697,10 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
 # =================== MAIN LOOP ===================
 def main():
     import glob
+   
+    os.makedirs(INPUT_FOLDER, exist_ok=True)
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    
     aiplatform.init(project=PROJECT_ID, location=LOCATION)
     model = GenerativeModel(MODEL_ID)
     
