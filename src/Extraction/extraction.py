@@ -42,7 +42,7 @@ If the page contains a table with environmental, water, energy, GHG or productio
 - Return one JSON entry per (metric_name, value, unit) found in the table.
 """
 
-# =================== PROMPT RENFORCÉ (Contrainte sur les Unités) ===================
+# =================== PROMPT ===================
 
 PROMPT = """
 You are a senior data analyst. Carefully review the PAGE image and extract ONLY:
@@ -101,7 +101,7 @@ IGNORE and DO NOT EXTRACT people/workforce/safety data (employees, OEL, LTIFR, T
 IGNORE company-level financials not tied to a specific product.
 DO NOT use the word "page" as a unit. If a metric has no value and no unit (e.g., page number), DO NOT extract it.
 
-# 💡 Extraction de l'Entité Locale (SIMPLIFIÉE)
+# Extraction de l'Entité Locale (SIMPLIFIÉE)
 Also return three context fields:
 - "category": YOU MUST ASSIGN the metric to its corresponding list CATEGORY (e.g., "Production", "Economics", "Energy", "Water", "Geology", "Waste", "Emissions", or "Other").
 - "context": a PRECISE and detailed snippet (≤200 characters) from the SAME panel/row where the value appears. CAPTURE all helpful qualifiers (asset/site/project name, scope, timeframe/years, period). Prioritize local precision; do not return full paragraphs. For items from tables/graphs set "context": "N/A".
@@ -133,7 +133,7 @@ Identify the name found in the largest font or in the main title/logo area.
 Return ONLY the name as a simple string, no JSON, no quotes, no commentary. If you cannot identify the name, return 'UNKNOWN'.
 """
 
-# =================== FONCTIONS UTILITAIRES DE BASE ===================
+# =================== FONCTIONS UTILITAIRES ===================
 
 PEOPLE_EXCLUDE = re.compile(r"\bemployee\b|\bworkforce\b|\blabou?r\b|\bheadcount\b|\boel\b|\binhalable\b|"
                             r"\bltifr\b|\btrifr\b|\bfatal\b|\binjur|\bhours\s*worked\b|\blost\s*time\b|\bmedical\b", re.I)
@@ -456,12 +456,10 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
     if os.path.exists(out_xlsx):
         print(f"⚠️ Fichier déjà existant, on passe : {out_xlsx}")
         return
-
-    # =========================================================================
-    # ⬇️ SOURCING ET DOUBLE TENTATIVE DE MATCHING ⬇️
-    # =========================================================================
-    
-    COMPANY_FUZZY_THRESHOLD = 90  # Seuil de sécurité élevé
+        
+    # ============== SOURCING ET DOUBLE TENTATIVE DE MATCHING ============== 
+  
+    COMPANY_FUZZY_THRESHOLD = 90  # Seuil de sécurité
     SITE_FUZZY_THRESHOLD = 70 
 
     # 1. SOURCING DES NOMS
@@ -473,7 +471,7 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
     
     dominant_name_raw = dominant_name_raw_llm if dominant_name_raw_llm else dominant_name_raw_summary
 
-    # 2. TENTATIVES SUR LE NOM DU LLM (PRIORITÉ MAXIMALE)
+    # 2. TENTATIVES SUR LE NOM DU LLM 
     if dominant_name_raw_llm:
         dominant_id, dominant_name = attempt_fuzzy_match(
             dominant_name_raw_llm, mapping_df, COMPANY_FUZZY_THRESHOLD, "Tentative 1A (LLM Brut)", use_clean=False
@@ -484,7 +482,7 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
                 dominant_name_raw_llm, mapping_df, COMPANY_FUZZY_THRESHOLD, "Tentative 1B (LLM Nettoyé)", use_clean=True
             )
 
-    # 3. TENTATIVES SUR LE NOM DU SUMMARY (SI LE LLM A TOTALEMENT ÉCHOUÉ)
+    # 3. TENTATIVES SUR LE NOM DU SUMMARY (SI LE LLM A ÉCHOUÉ)
     if dominant_id is None and dominant_name_raw_summary:
         print("→ Échec LLM. Début des tentatives sur le nom du Summary.")
         
@@ -579,7 +577,7 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
 
     df = pd.DataFrame(all_rows)
     
-    # ⬇️ LOGIQUE D'AFFILIATION FINALISÉE (Rattachement ID) ⬇️
+    # ============== LOGIQUE D'AFFILIATION (Rattachement ID) ============== 
     
     SITE_FUZZY_THRESHOLD = 70 
     
@@ -595,7 +593,7 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
     
     if mapping_df is not None:
         
-        # 2. LOGIQUE DE MATCHING DES SITES (PAUSE/JUMP SI ID MANQUANT)
+        # 2. LOGIQUE DE MATCHING DES SITES 
         
         if "site" in df.columns and "site_name_key" in mapping_df.columns:
             
@@ -604,16 +602,12 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
             
             unique_sites_to_match = df_merged[df_merged['site_key'] != '']['site_key'].unique()
             site_to_id_map = {} 
-            
-            # --- PREMIÈRE PASSE (Rattrapage de l'ID Cie si besoin) ---
-            # FIX: Ce bloc est désormais désactivé dans le code que je vous ai fourni, 
-            # mais nous le conservons ici pour le contexte du log.
+
             if dominant_id is None and unique_sites_to_match.size > 0:
                 print(f"   ∟ ID Compagnie Inconnu. Tentative de RATTRAPAGE via Sites DÉSACTIVÉE (Trop risqué).")
             
             # --- DEUXIÈME PASSE (Matching de TOUS les sites valides avec le FILTRE) ---
             
-            # ⚠️ LE BLOC CRITIQUE QUI NE DOIT S'EXÉCUTER QUE SI L'ID EST CONNU ⚠️
             if dominant_id is not None and unique_sites_to_match.size > 0:
                 
                 mapping_site_df = mapping_df[mapping_df['ID_operator_SP'] == dominant_id].copy() 
@@ -663,7 +657,7 @@ def process_one_pdf(pdf_path, model, cfg, mapping_df):
         if dominant_id is None:
             print("     ∟ Filtrage final: Aucune affiliation ID trouvée, les colonnes ID/short_name/site resteront vides ou 'N/A'.")
     
-    # ⬆️ FIN DE LA LOGIQUE D'AFFILIATION FINALISÉE ⬆️
+    # ============== FIN DE LA LOGIQUE D'AFFILIATION ============== 
     
     df = df_merged.copy() 
     
