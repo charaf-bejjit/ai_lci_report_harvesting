@@ -41,7 +41,7 @@ PROJECT_ID = os.getenv("PROJECT_ID", "your-project-id")
 LOCATION = os.getenv("VTX_LOCATION", "europe-west4")
 MODEL_ID = os.getenv("VTX_MODEL", "gemini-2.5-pro")
 
-# ===================== PROMPT (AJUSTÉ final) =====================
+# ===================== PROMPT =====================
 PROMPT = r"""
 You are a senior data analyst specialized in responsible mineral resource value chains (ACV, RORR).
 From the FULL TEXT below (no guessing), return EXACTLY ONE valid JSON object on ONE line
@@ -202,7 +202,7 @@ If a name contains the words:
 - Return ONLY the JSON object, ONE LINE, no code fences, no commentary.
 """
 
-# ===================== UTILS (FONCTIONS D'EXTRACTION MISES À JOUR) =====================
+# ===================== UTILS =====================
 
 def clean_text(full_text: str) -> str:
     """Applique les nettoyages standards au texte extrait."""
@@ -211,8 +211,6 @@ def clean_text(full_text: str) -> str:
     full_text = re.sub(r"\n{3,}", "\n\n", full_text)
     return full_text
 
-# MODIFICATION: Suppression de la fonction extract_full_text_simple
-# Nous allons forcer l'extraction robuste directement.
 
 def extract_full_text_robust(pdf_path: str, max_chars: int = 140_000) -> str:
     """Méthode d'extraction robuste: Texte + tables structurées mises en évidence."""
@@ -386,7 +384,7 @@ def human_diag(d: Dict[str, Any]) -> str:
 
     sc = d.get("sites_categorized") or {}
     
-    # Calcul du nombre total de sites industriels (dédupliqué) pour le diagnostic
+    # Calcul du nombre total de sites industriels 
     industrial_sites_set = set(sc.get("Mine_Quarry", [])) | \
                            set(sc.get("Processing_Plant", [])) | \
                            set(sc.get("Smelter_Refinery", []))
@@ -474,7 +472,7 @@ def human_diag(d: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-# ===================== PROCESS UN PDF (Logique de décision CORRIGÉE) =====================
+# ===================== PROCESS UN PDF =====================
 def process_pdf(pdf_path: str, model, cfg) -> Dict[str, Any]:
     base = os.path.splitext(os.path.basename(pdf_path))[0]
     out_dir = os.path.dirname(pdf_path)
@@ -544,7 +542,7 @@ def process_pdf(pdf_path: str, model, cfg) -> Dict[str, Any]:
         dx = data.get("data_existence") or {}
         ds = data.get("data_structure") or {}
         
-        # Calcul des variables pour la décision et l'Excel (compte unique)
+        # Calcul des variables pour la décision et l'Excel 
         industrial_sites_set = set(sc.get("Mine_Quarry", [])) | \
                                set(sc.get("Processing_Plant", [])) | \
                                set(sc.get("Smelter_Refinery", []))
@@ -683,7 +681,7 @@ def process_pdf(pdf_path: str, model, cfg) -> Dict[str, Any]:
     }
     return row
 
-# ===================== MAIN (mode PATCH: ne traite que les __DIAG petits) =====================
+# ===================== MAIN =====================
 def main():
     os.makedirs(IN_DIR, exist_ok=True)
     # NOUVELLES COLONNES POUR LE DATAFRAME FINAL
@@ -701,7 +699,7 @@ def main():
         print(f"❌ Dossier introuvable : {IN_DIR}")
         sys.exit(1)
 
-    # liste des PDF (non récursif)
+    # liste des PDF 
     pdfs = [os.path.join(IN_DIR, f) for f in os.listdir(IN_DIR) if f.lower().endswith(".pdf")]
     pdfs.sort()
     if not pdfs:
@@ -709,7 +707,7 @@ def main():
 
     print(f"🗂️ {len(pdfs)} PDF trouvés dans : {IN_DIR}")
 
-    # init modèle une seule fois
+    # init modèle
     aiplatform.init(project=PROJECT_ID, location=LOCATION)
     model = GenerativeModel(MODEL_ID, system_instruction=PROMPT)
     cfg = GenerationConfig(response_mime_type="application/json", temperature=0.0, max_output_tokens=8192)
@@ -719,7 +717,7 @@ def main():
         base = os.path.splitext(os.path.basename(pdf))[0]
         diag_path = os.path.join(IN_DIR, f"{base}__DIAG.txt")
 
-        # LOGIQUE DE REPASSE (Retraitement si DIAG existe mais est "vide" ou trop petit)
+        # LOGIQUE DE REPASSE
         if os.path.exists(diag_path):
             try:
                 size = os.path.getsize(diag_path)
@@ -728,15 +726,13 @@ def main():
             if size > SIZE_THRESHOLD:
                 print(f"⏭️     Skip {base} (diag existant {size} o > {SIZE_THRESHOLD} o)")
                 continue
-
-        # Sinon, (re)traite ce PDF
         try:
             row = process_pdf(pdf, model, cfg)
             if row: summary_rows.append(row)
         except Exception as e:
             print(f"    ❌ Erreur sur {os.path.basename(pdf)} : {e}")
 
-    # ====== Export Excel PATCH à la racine du dossier (Fusion) ======
+    # ====== Export Excel PATCH ======
     if summary_rows:
         
         # 1. Créer le DataFrame à partir des NOUVELLES lignes traitées
@@ -750,22 +746,16 @@ def main():
             print(f"    → Fichier existant trouvé. Fusion des {len(df_new)} nouvelles lignes...")
             try:
                 df_old = pd.read_excel(out_xlsx, engine="openpyxl")
-                
-                # S'assurer que les colonnes sont cohérentes
                 df_old = df_old.reindex(columns=EXCEL_COLUMNS)
-                
-                # Filtrer les anciennes lignes pour ne pas dupliquer ou mélanger le PATCH
                 pdfs_to_exclude = df_new['pdf'].tolist()
                 df_old_filtered = df_old[~df_old['pdf'].isin(pdfs_to_exclude)]
-                
-                # Concaténer l'ancien contenu non-retraité et le nouveau contenu
                 df_final = pd.concat([df_old_filtered, df_new], ignore_index=True)
                 
             except Exception as e:
                 print(f"❌ Erreur lors de la lecture/fusion du fichier Excel existant: {e}. Écriture des nouvelles lignes SEULEMENT.")
                 # df_final reste df_new dans ce cas
         
-        # 3. Écrire le DataFrame final (qui contient l'ancien + le nouveau)
+        # 3. Écrire le DataFrame final (ancien + nouveau)
         df_final.to_excel(out_xlsx, index=False, engine="openpyxl")
         print(f"\n📊 Patch résumé écrit : {out_xlsx} (Total: {len(df_final)} lignes)")
     else:
